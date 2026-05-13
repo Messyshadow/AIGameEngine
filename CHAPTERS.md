@@ -77,7 +77,10 @@ AIForge 是**第一个为多模态 LLM 协作量身设计的开源游戏引擎**
 |----|---|---|---|
 | **11** | Cascaded Shadow Maps + PCF | 大场景下角色和建筑都有自然阴影,无 acne | **CSM 4 级级联** / PCF 软阴影 / Bias 调优 / Peter-Panning 修复 |
 | **12** | 后处理 Stack | 同场景对比 Bloom / SSAO / TAA 开关 | **SSAO**(屏幕空间环境光遮蔽)/ Bloom / **TAA**(时序抗锯齿)/ Vignette |
-| **13** | GPU 粒子 + Compute Shader | 屏幕上 100 万粒子,实时风场互动 | **Compute Shader** / SSBO / GPU 粒子模拟 / 间接绘制 |
+| **13** | GPU 粒子 + Compute Shader | 屏幕上 100 万粒子,实时风场互动 + 爆炸冲击波 | **Compute Shader** / SSBO / GPU 粒子模拟 / 间接绘制 / 爆炸特效 |
+| **13.5** | GPU 流体仿真(★ 用户提议) | 房间里能拨开的烟雾 / 互动水面 / 火焰扭曲 | **Navier-Stokes** / Eulerian Grid / 投影迭代 / Density Advection |
+| **13.7** | 实时光线追踪(★ 用户提议) | 镜面反射真实路径 / 反射焦散 / 软影 | **硬件 RTX**(`VK_KHR_ray_tracing`)/ 软件 BVH compute fallback / 降噪 |
+| **13.8** | 体积云 + 大气散射(★ 用户提议) | 飞机穿云 / 黄昏蓝紫天空 | **Volumetric Raymarching** / Worley/Perlin Noise / 多次散射近似 |
 
 ### 第五篇 · 物理与音频(Ch 14-15)
 

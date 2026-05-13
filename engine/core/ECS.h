@@ -88,6 +88,14 @@ public:
         return static_cast<T*>(it->second.get());
     }
 
+    /// @ai_summary const 重载,供只读上下文(如 AIContext)使用
+    template <typename T>
+    const T* GetComponent() const {
+        auto it = m_components.find(T::TypeName());
+        if (it == m_components.end()) return nullptr;
+        return static_cast<const T*>(it->second.get());
+    }
+
     /// @ai_summary 是否拥有指定组件
     template <typename T>
     bool HasComponent() const {

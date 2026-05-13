@@ -52,4 +52,32 @@ struct Vec4 {
 /// @ai_related Vec3
 bool ParseVec3(const std::string& text, Vec3& out);
 
+/// @ai_summary 4x4 浮点矩阵,列主序(column-major)对齐 GLSL 默认布局。
+/// @ai_example
+///   Mat4 proj = Mat4::Ortho(-100, 100, -100, 100, -1, 1);
+///   Mat4 view = Mat4::Translate({-camX, -camY, 0});
+///   Mat4 vp   = proj * view;
+/// @ai_related Vec3, Camera2D
+struct Mat4 {
+    float m[16];
+
+    Mat4();
+    explicit Mat4(float diag);
+    static Mat4 Identity();
+
+    Vec4 operator*(const Vec4& v) const;
+    Mat4 operator*(const Mat4& other) const;
+    const float* Data() const { return m; }
+
+    static Mat4 Translate(const Vec3& t);
+    static Mat4 Scale(const Vec3& s);
+    static Mat4 RotateZ(float radians);
+    static Mat4 RotateX(float radians);
+    static Mat4 RotateY(float radians);
+    static Mat4 Ortho(float left, float right, float bottom, float top,
+                      float znear, float zfar);
+    static Mat4 Perspective(float fovYRadians, float aspect, float znear,
+                            float zfar);
+};
+
 }  // namespace AIForge

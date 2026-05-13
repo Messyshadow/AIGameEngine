@@ -65,6 +65,12 @@ public:
     /// @ai_summary 查找一条命令；不存在返回 nullptr。
     const Entry* Find(const std::string& verb) const;
 
+    /// @ai_summary 找最接近的已注册命令(Levenshtein 距离 <= maxDist),
+    /// 用于在 Execute 失败时给 AI 友好提示("did you mean: 'spawn'?")。
+    /// 距离更远则返回空字符串。
+    /// @ai_example registry.FindNearest("spwan") -> "spawn"
+    std::string FindNearest(const std::string& verb, int maxDist = 2) const;
+
 private:
     std::unordered_map<std::string, Entry> m_entries;
 };

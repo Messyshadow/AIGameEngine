@@ -65,6 +65,8 @@ file(GLOB_RECURSE AIFORGE_SRC CONFIGURE_DEPENDS
     engine/core/*.h
     engine/command/*.cpp
     engine/command/*.h
+    engine/render/*.cpp
+    engine/render/*.h
 )
 add_library(aiforge STATIC ${AIFORGE_SRC})
 target_include_directories(aiforge PUBLIC
@@ -106,6 +108,8 @@ endfunction()
 # ============================================================================
 aiforge_chapter_demo(chapter_01_demo examples/01_hello_window/main.cpp)
 aiforge_chapter_demo(chapter_02_demo examples/02_ecs_demo/main.cpp)
+aiforge_chapter_demo(chapter_03_demo examples/03_command_demo/main.cpp)
+aiforge_chapter_demo(chapter_04_demo examples/04_2d_sprite_batcher/main.cpp)
 
 # ============================================================================
 # Status summary
