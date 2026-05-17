@@ -117,6 +117,22 @@ Mat4 Mat4::Perspective(float fovYRad, float aspect, float znear, float zfar) {
     return r;
 }
 
+Mat4 Mat4::LookAt(const Vec3& eye, const Vec3& target, const Vec3& up) {
+    // 右手系视图矩阵
+    Vec3 f = Normalize(target - eye);   // forward
+    Vec3 s = Normalize(Cross(f, up));   // right
+    Vec3 u = Cross(s, f);               // recomputed up
+
+    Mat4 r;  // 单位阵
+    r.m[0]  = s.x;  r.m[4]  = s.y;  r.m[8]  = s.z;
+    r.m[1]  = u.x;  r.m[5]  = u.y;  r.m[9]  = u.z;
+    r.m[2]  = -f.x; r.m[6]  = -f.y; r.m[10] = -f.z;
+    r.m[12] = -Dot(s, eye);
+    r.m[13] = -Dot(u, eye);
+    r.m[14] =  Dot(f, eye);
+    return r;
+}
+
 bool ParseVec3(const std::string& text, Vec3& out) {
     out = Vec3{};
     float values[3] = {0, 0, 0};

@@ -101,6 +101,13 @@ function(aiforge_chapter_demo target_name source_file)
             COMMENT "Copying SDL3.dll next to ${target_name}"
         )
     endif()
+    # 把项目的 data/ 同步到 .exe 旁边,让相对路径 "data/..." 能工作
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/data
+            $<TARGET_FILE_DIR:${target_name}>/data
+        COMMENT "Syncing data/ next to ${target_name}"
+    )
 endfunction()
 
 # ============================================================================
@@ -110,6 +117,9 @@ aiforge_chapter_demo(chapter_01_demo examples/01_hello_window/main.cpp)
 aiforge_chapter_demo(chapter_02_demo examples/02_ecs_demo/main.cpp)
 aiforge_chapter_demo(chapter_03_demo examples/03_command_demo/main.cpp)
 aiforge_chapter_demo(chapter_04_demo examples/04_2d_sprite_batcher/main.cpp)
+aiforge_chapter_demo(chapter_05_demo examples/05_2d_animation_particles_tilemap/main.cpp)
+aiforge_chapter_demo(chapter_06_demo examples/06_2d_lighting_postfx/main.cpp)
+aiforge_chapter_demo(chapter_07_demo examples/07_3d_mesh_camera/main.cpp)
 
 # ============================================================================
 # Status summary

@@ -29,6 +29,9 @@ class Texture;
 /// @ai_related Camera2D, Shader, Texture
 class SpriteBatcher {
 public:
+    /// @ai_summary 混合模式:Alpha = 普通透明(默认);Additive = 加法混合(发光/粒子/光照)。
+    enum class BlendMode { Alpha, Additive };
+
     SpriteBatcher();
     ~SpriteBatcher();
 
@@ -42,9 +45,11 @@ public:
     void Shutdown();
 
     /// @ai_summary 开始新的一帧批次。会重置统计计数器。
-    /// @ai_params cam 当前摄像机(其 ViewProjection 将传给 shader)
-    /// @ai_params tex 本批次绑定的纹理(单纹理模式)
-    void Begin(const Camera2D& cam, const Texture& tex);
+    /// @ai_params cam   当前摄像机(其 ViewProjection 将传给 shader)
+    /// @ai_params tex   本批次绑定的纹理(单纹理模式)
+    /// @ai_params blend 混合模式,默认 Alpha;画光源/发光粒子用 Additive
+    void Begin(const Camera2D& cam, const Texture& tex,
+               BlendMode blend = BlendMode::Alpha);
 
     /// @ai_summary 提交一个 sprite。坐标 (0,0) 是世界中心,size 是宽高(像素)。
     /// @ai_params pos      世界坐标(像素)
@@ -52,6 +57,14 @@ public:
     /// @ai_params color    RGBA,与纹理相乘
     /// @ai_params rotation 弧度,绕 sprite 中心
     void Submit(Vec2 pos, Vec2 size, Vec4 color, float rotation = 0.0f);
+
+    /// @ai_summary 提交一个 sprite,带 UV 子矩形(用于 sprite sheet 取帧)。
+    /// @ai_params uvRect (u0, v0, u1, v1) — 纹理坐标矩形,默认 {0,0,1,1} 整张图。
+    /// @ai_example
+    ///   Vec4 uv = sheet.GetFrameUV(currentFrame);
+    ///   batcher.SubmitUV(pos, size, color, 0, uv);
+    void SubmitUV(Vec2 pos, Vec2 size, Vec4 color, float rotation,
+                  const Vec4& uvRect);
 
     /// @ai_summary 结束本批次,把所有 Submit 过的 sprite 一次性画出来。
     void End();
@@ -80,6 +93,7 @@ private:
 
     Mat4 m_viewProj;
     const Texture* m_currentTex = nullptr;
+    BlendMode m_blendMode = BlendMode::Alpha;
 
     int m_drawCalls         = 0;
     int m_spritesSubmitted  = 0;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace AIForge {
 
@@ -28,6 +29,14 @@ public:
     /// @ai_params useMipmap   是否生成 mipmap(默认 false)
     /// @ai_params linearFilter 是否用线性过滤(默认 true;像素艺术请关掉)
     bool CreateFromRGBA(int width, int height, const uint8_t* pixels,
+                        bool useMipmap = false, bool linearFilter = true);
+
+    /// @ai_summary 从 PNG/JPG/BMP 文件加载(stb_image)。文件路径可以是相对工作目录或绝对。
+    /// @ai_summary 加载后会以 RGBA8 上传到 GPU,自动垂直翻转(GL 习惯)。
+    /// @ai_example
+    ///   Texture tex;
+    ///   tex.CreateFromFile("data/textures/character/robot3_idle.png");
+    bool CreateFromFile(const std::string& path,
                         bool useMipmap = false, bool linearFilter = true);
 
     void Destroy();

@@ -131,9 +131,11 @@ void SpriteBatcher::Shutdown() {
     m_currentTex = nullptr;
 }
 
-void SpriteBatcher::Begin(const Camera2D& cam, const Texture& tex) {
+void SpriteBatcher::Begin(const Camera2D& cam, const Texture& tex,
+                          BlendMode blend) {
     m_viewProj   = cam.GetViewProjection();
     m_currentTex = &tex;
+    m_blendMode  = blend;
     m_cpuBuffer.clear();
     m_spritesInBatch = 0;
     m_drawCalls = 0;
@@ -141,6 +143,11 @@ void SpriteBatcher::Begin(const Camera2D& cam, const Texture& tex) {
 }
 
 void SpriteBatcher::Submit(Vec2 pos, Vec2 size, Vec4 color, float rotation) {
+    SubmitUV(pos, size, color, rotation, Vec4{0.0f, 0.0f, 1.0f, 1.0f});
+}
+
+void SpriteBatcher::SubmitUV(Vec2 pos, Vec2 size, Vec4 color, float rotation,
+                              const Vec4& uvRect) {
     if (m_spritesInBatch >= m_maxSprites) {
         Flush();
     }
@@ -151,15 +158,15 @@ void SpriteBatcher::Submit(Vec2 pos, Vec2 size, Vec4 color, float rotation) {
     // 本地空间 4 个角 (左下/右下/右上/左上)
     float lx[4] = {-hw,  hw,  hw, -hw};
     float ly[4] = {-hh, -hh,  hh,  hh};
-    float u[4]  = { 0,   1,   1,   0};
-    float v[4]  = { 0,   0,   1,   1};
+    // UV 矩形: x=u0 y=v0 z=u1 w=v1
+    float u[4]  = { uvRect.x, uvRect.z, uvRect.z, uvRect.x};
+    float v[4]  = { uvRect.y, uvRect.y, uvRect.w, uvRect.w};
 
     float c = std::cos(rotation);
     float s = std::sin(rotation);
 
     for (int i = 0; i < 4; ++i) {
         Vertex vert;
-        // 本地 → 旋转 → 平移
         vert.x = lx[i] * c - ly[i] * s + pos.x;
         vert.y = lx[i] * s + ly[i] * c + pos.y;
         vert.u = u[i];
@@ -186,6 +193,13 @@ void SpriteBatcher::Flush() {
     glBufferSubData(GL_ARRAY_BUFFER, 0,
                     (GLsizeiptr)(m_cpuBuffer.size() * sizeof(Vertex)),
                     m_cpuBuffer.data());
+
+    // 根据混合模式设置 blend func
+    if (m_blendMode == BlendMode::Additive) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);            // 加法:适合光源/发光
+    } else {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  // 普通透明
+    }
 
     m_shader->Bind();
     m_shader->SetMat4("u_ViewProj", m_viewProj);

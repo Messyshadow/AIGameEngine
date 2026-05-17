@@ -30,7 +30,31 @@ struct Vec3 {
 
     /// @ai_summary 向量长度
     float Length() const { return std::sqrt(x * x + y * y + z * z); }
+
+    Vec3 operator+(const Vec3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vec3 operator-(const Vec3& o) const { return {x - o.x, y - o.y, z - o.z}; }
+    Vec3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    Vec3 operator-() const { return {-x, -y, -z}; }
 };
+
+/// @ai_summary 向量点积
+inline float Dot(const Vec3& a, const Vec3& b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+/// @ai_summary 向量叉积(右手系)
+inline Vec3 Cross(const Vec3& a, const Vec3& b) {
+    return {a.y * b.z - a.z * b.y,
+            a.z * b.x - a.x * b.z,
+            a.x * b.y - a.y * b.x};
+}
+
+/// @ai_summary 归一化(零向量原样返回)
+inline Vec3 Normalize(const Vec3& v) {
+    float len = v.Length();
+    if (len < 1e-8f) return v;
+    return {v.x / len, v.y / len, v.z / len};
+}
 
 /// @ai_summary 四维向量（float），常用于颜色RGBA或四元数原始数据。
 /// @ai_example Vec4 color{1, 0, 0, 1};   // 红色
@@ -78,6 +102,12 @@ struct Mat4 {
                       float znear, float zfar);
     static Mat4 Perspective(float fovYRadians, float aspect, float znear,
                             float zfar);
+
+    /// @ai_summary 视图矩阵(摄像机看向某点)。3D 摄像机用。
+    /// @ai_params eye    摄像机位置
+    /// @ai_params target 注视点
+    /// @ai_params up     上方向(通常 {0,1,0})
+    static Mat4 LookAt(const Vec3& eye, const Vec3& target, const Vec3& up);
 };
 
 }  // namespace AIForge
