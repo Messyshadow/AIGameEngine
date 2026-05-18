@@ -120,6 +120,7 @@ aiforge_chapter_demo(chapter_04_demo examples/04_2d_sprite_batcher/main.cpp)
 aiforge_chapter_demo(chapter_05_demo examples/05_2d_animation_particles_tilemap/main.cpp)
 aiforge_chapter_demo(chapter_06_demo examples/06_2d_lighting_postfx/main.cpp)
 aiforge_chapter_demo(chapter_07_demo examples/07_3d_mesh_camera/main.cpp)
+aiforge_chapter_demo(chapter_08_demo examples/08_pbr_materials_lighting/main.cpp)
 
 # ============================================================================
 # Status summary
