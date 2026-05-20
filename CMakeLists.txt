@@ -121,6 +121,7 @@ aiforge_chapter_demo(chapter_05_demo examples/05_2d_animation_particles_tilemap/
 aiforge_chapter_demo(chapter_06_demo examples/06_2d_lighting_postfx/main.cpp)
 aiforge_chapter_demo(chapter_07_demo examples/07_3d_mesh_camera/main.cpp)
 aiforge_chapter_demo(chapter_08_demo examples/08_pbr_materials_lighting/main.cpp)
+aiforge_chapter_demo(chapter_09_demo examples/09_skybox_ibl_tonemap/main.cpp)
 
 # ============================================================================
 # Status summary

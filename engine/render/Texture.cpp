@@ -49,6 +49,60 @@ bool Texture::CreateFromRGBA(int width, int height, const uint8_t* pixels,
     return true;
 }
 
+bool Texture::CreateFromHDR(const std::string& path, bool flipVertical) {
+    stbi_set_flip_vertically_on_load(flipVertical ? 1 : 0);
+
+    int w = 0, h = 0, ch = 0;
+    float* data = nullptr;
+    std::string usedPath;
+
+    const char* base = SDL_GetBasePath();
+    if (base) {
+        std::string full = std::string(base) + path;
+        data = stbi_loadf(full.c_str(), &w, &h, &ch, 3);
+        if (data) usedPath = full;
+    }
+    if (!data) {
+        data = stbi_loadf(path.c_str(), &w, &h, &ch, 3);
+        if (data) usedPath = path;
+    }
+    if (!data) {
+        std::error_code ec;
+        std::string cwd = std::filesystem::current_path(ec).string();
+        std::fprintf(stderr,
+            "[Texture] FAIL to load HDR '%s'\n  reason: %s\n  CWD: %s\n",
+            path.c_str(), stbi_failure_reason(), cwd.c_str());
+        return false;
+    }
+
+    Destroy();
+    glGenTextures(1, &m_id);
+    glBindTexture(GL_TEXTURE_2D, m_id);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, w, h, 0, GL_RGB, GL_FLOAT, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                    GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // equirect 经度首尾相接 -> 横向 REPEAT;纬度到极点 -> 纵向 CLAMP
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+    m_width  = w;
+    m_height = h;
+    std::printf("[Texture] loaded HDR '%s' (%dx%d) via %s\n", path.c_str(), w, h,
+                usedPath.c_str());
+    return true;
+}
+
+int Texture::GetMaxMipLevel() const {
+    int maxDim = m_width > m_height ? m_width : m_height;
+    int level = 0;
+    while (maxDim > 1) { maxDim >>= 1; ++level; }
+    return level;
+}
+
 void Texture::Destroy() {
     if (m_id) {
         glDeleteTextures(1, &m_id);

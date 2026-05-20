@@ -39,6 +39,14 @@ public:
     bool CreateFromFile(const std::string& path,
                         bool useMipmap = false, bool linearFilter = true);
 
+    /// @ai_summary 加载 HDR(.hdr)全景图为 RGB16F 浮点纹理 + mipmap。
+    /// @ai_summary 用于 Ch 09 天空盒 / IBL —— 浮点纹理才能存 >1 的高动态范围光照。
+    /// @ai_summary 横向 WRAP 设为 REPEAT(equirect 经度首尾相接)。
+    bool CreateFromHDR(const std::string& path, bool flipVertical = true);
+
+    /// @ai_summary 最大 mip 层级 = floor(log2(max(w,h)));IBL 按粗糙度采样需要它。
+    int GetMaxMipLevel() const;
+
     void Destroy();
 
     /// @ai_summary 把纹理绑定到指定 texture unit(对应 shader 里 sampler2D 的 layout)。

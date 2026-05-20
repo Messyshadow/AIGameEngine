@@ -1,91 +1,179 @@
 # Chapter 09 — Skybox + IBL + Tonemap
 
-> **本章定位**:让 3D 场景有"环境感",画面有"电影感"。
+> **本章定位**:给 3D 世界一片"天空",让金属反射真实环境。场景不再"漂浮在虚空"。
 
 ---
 
-## 本章目标
-1. **Cubemap**:6 面贴图组成的天空盒
-2. **HDR 环境贴图加载**(.hdr 格式)
-3. **IBL(Image-Based Lighting)**:用环境贴图当光源
-   - **Diffuse Irradiance Map**:卷积出的低频环境漫反射
-   - **Prefiltered Environment Map**:不同粗糙度的高光环境
-   - **BRDF LUT**:预积分的菲涅尔查找表
-4. **Tonemapping**:HDR → SDR 的"色调映射"(ACES Filmic 业界标准)
-5. **Gamma 校正**完整管线(sRGB framebuffer)
-6. Demo:同一组金属球,在沙漠/雪山/工作室 3 个 HDR 环境下切换
+## 一、本章意义
 
-## 跑出来的 Demo
-`build/Release/chapter_09_demo.exe` — 5 个金属粗糙度从 0→1 的球,在 3 个 HDR 环境间循环切换(数字键 1/2/3 切换)。金属球能看到环境反射,粗糙球反射模糊。开/关 ACES tonemap 对比。
+Ch 08 的材质球只被方向光/点光照亮 —— 右上角那些粗糙金属球**发黑**,因为现实里金属之所以好看,是因为它**反射周围环境**(天空、墙、地面)。没有环境,金属就是黑的。
 
-## 学到的前沿技术
-- **Cubemap 采样**:为什么用方向向量索引,不是 UV
-- **HDR 文件格式**:RGBE 编码,Radiance .hdr / OpenEXR .exr
-- **球面卷积**:对环境贴图做积分得到 irradiance(预计算)
-- **重要性采样**:GGX 分布的预过滤
-- **Split-Sum Approximation**(Epic UE4 经典)
-- **ACES Filmic Tonemap**:从 5 万 nit HDR 压到 100 nit SDR 的工业标准曲线
+本章加两样东西:
+1. **Skybox(天空盒)** —— 场景背景是真实拍摄的 HDR 全景图
+2. **IBL(Image-Based Lighting,基于图像的光照)** —— 用这张环境图当光源,金属球反射天空,所有物体都有自然的环境光
 
-## 背景知识
+学完本章,AIForge 的 3D 画面达到**产品级真实感** —— 这是 Sketchfab、ArtStation 上模型展示的标准做法。
 
-只有方向光 + 点光的场景看起来"漂浮在虚空"。**IBL 解决"环境光"问题** — 让金属球反射真实天空,让暗处也有微弱反射光。这是 PBR 看起来真实的关键。
+---
 
-ACES(Academy Color Encoding System)是好莱坞数字电影色彩标准。游戏行业从 2015 年起广泛采用。Tonemap 之前画面是"窗户外的真实亮度",之后是"屏幕能显示的亮度",这个曲线决定了"是否电影感"。
+## 二、本章目标
 
-## 架构设计
+| 目标 | 验收 |
+|---|---|
+| 加载 **HDR 全景图**(.hdr 浮点纹理) | RGB16F + mipmap |
+| **Skybox** 渲染 | 背景是真实天空,跟随相机 |
+| **IBL 镜面反射** | 金属球反射天空,粗糙度越大反射越模糊 |
+| **IBL 漫反射环境光** | 暗处也有来自天空的柔和补光 |
+| **HDR Tonemap + Gamma** | 高动态范围正确压到屏幕 |
+| 切换 3 张 HDRI | 数字键 1/2/3,看不同环境下材质的变化 |
 
-```
-预计算管线(运行一次):
- [.hdr 加载] → [Equirectangular 转 Cubemap] → [卷积 Irradiance Map]
-                                            → [预过滤多 mipmap Specular Map]
-                                            → [BRDF LUT(2D)]
+---
 
-运行时:
- standard.fs 里:
-    vec3 ambient = (kD * irradiance * albedo + specular) * ao;
-    其中 specular = prefilteredColor * (F * envBRDF.x + envBRDF.y);
-    最终: color = (Lo + ambient);
-    color = ACESFitted(color);
-    output = pow(color, 1/2.2);  // gamma
-```
+## 三、为什么需要 HDR(高动态范围)
 
-## 涉及源文件
-- `engine/render/Skybox.h/cpp`
-- `engine/render/IBL.h/cpp`(包含 3 个预计算)
-- `engine/render/Tonemap.h`
-- `data/shaders/skybox.vs/fs`
-- `data/shaders/ibl_*.vs/fs`(equirect_to_cube / irradiance_conv / prefilter / brdf_lut)
-- `data/textures/hdri/desert.hdr` 等
+普通图片每通道 8 位(0-255),表示不了真实世界的亮度跨度 —— 太阳比阴影亮**几万倍**。
 
-## ACES 关键代码
+**HDR(.hdr / .exr)** 用浮点存储,亮度可以远超 1.0。这对光照至关重要:
+- 用 HDR 当光源,亮的地方(太阳)真的很亮 → 金属高光才有"刺眼"的真实感
+- 最后用 **Tonemap** 把这个超大范围压回屏幕能显示的 [0,1]
+
+本章的 HDR 来自 [Polyhaven](https://polyhaven.com)(CC0 免费),已自动下载到 `data/textures/hdri/`。
+
+---
+
+## 四、Equirectangular(等距柱状)全景图
+
+HDR 全景图是 **2:1 的"世界地图"投影** —— 就像把整个球形天空摊平成一张矩形图(经度→横轴,纬度→纵轴)。
+
+**方向 ↔ UV 的转换**(本章核心数学):
 ```glsl
-// ACES Filmic Tone Mapping (Krzysztof Narkowicz 简化版)
-vec3 ACESFitted(vec3 x) {
-    float a = 2.51;
-    float b = 0.03;
-    float c = 2.43;
-    float d = 0.59;
-    float e = 0.14;
-    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+const vec2 invAtan = vec2(0.15915494, 0.31830989);  // (1/2pi, 1/pi)
+vec2 dirToUV(vec3 d) {
+    vec2 uv = vec2(atan(d.z, d.x), asin(clamp(d.y, -1.0, 1.0)));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
 }
 ```
+给一个方向向量(看天空的方向 / 反射方向 / 法线方向),算出在全景图上采样的 UV。**天空盒、IBL 反射、IBL 环境光,全靠这一个函数。**
 
-## 课后练习
-1. 加 BRDF LUT 的实时预览(画到屏幕一角)
-2. 实现 Reinhard / Uncharted 2 / Filmic 多种 Tonemap 切换
-3. 加"曝光控制"(模拟相机,让画面整体变亮/变暗)
+---
 
-## 常见坑
-- HDR 加载用 stb_image 的 `stbi_loadf`,数据是 float32
-- 预过滤 cubemap 要逐 mipmap level 渲染,roughness = mip / maxMip
-- BRDF LUT 是 2D 不是 cubemap,xy = (NdotV, roughness)
-- Gamma 校正只做一次(framebuffer sRGB 自动 + 手动 pow 二选一)
+## 五、Skybox 怎么画 —— 两个技巧
 
-## 延伸阅读
-- [Real Shading in UE4 (Karis 2013)](https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf) — Split-Sum 提出
-- [LearnOpenGL — IBL](https://learnopengl.com/PBR/IBL/Diffuse-irradiance) — 完整教程
-- [HDR & ACES — Hable Blog](http://filmicworlds.com/blog/filmic-tonemapping-operators/)
-- [Polyhaven HDRI](https://polyhaven.com/hdris) — 免费高质量 HDR 环境
+```glsl
+// 顶点着色器
+gl_Position = (proj * mat3ToMat4(view) * vec4(a_Pos, 1.0)).xyww;
+```
 
-## 下一章预告
-**Ch 10 — 骨骼动画 + 状态机 + 混合树**:让 3D 角色"动起来",真正像游戏角色而非雕塑。
+**技巧 1:去掉视图矩阵的平移**(只保留旋转)→ 天空盒永远以相机为中心,你走多远天空都"够不着"(无限远)。
+
+**技巧 2:`.xyww`** → 透视除法后深度 = w/w = 1.0(远平面)。配合 `glDepthFunc(GL_LEQUAL)`,天空盒只画在"没有任何物体"的背景像素上,被物体遮住的地方自动不画。
+
+---
+
+## 六、IBL —— 本章的灵魂
+
+IBL 把"环境图"当成一个**360° 的光源**。物体表面收到的环境光分两部分:
+
+### 漫反射环境光(Diffuse IBL)
+表面朝哪个方向(法线 N),就接收那个方向**附近一大片**天空的平均亮度。
+```glsl
+// 用高 mip(模糊版)采样 = 廉价的"辐照度"近似
+vec3 irradiance = textureLod(u_Env, dirToUV(N), maxMip - 2.0).rgb;
+vec3 diffuseIBL = irradiance * albedo;
+```
+
+### 镜面反射环境光(Specular IBL)
+光滑表面像镜子,反射 `R = reflect(-V, N)` 方向的天空;粗糙表面反射模糊。
+```glsl
+vec3 R = reflect(-V, N);
+// 粗糙度 -> mip 层级:越粗糙采样越模糊的 mip
+vec3 prefiltered = textureLod(u_Env, dirToUV(R), roughness * maxMip).rgb;
+vec3 specularIBL = prefiltered * fresnel;
+```
+
+**关键技巧**:用纹理的 **mipmap** 模拟"粗糙度模糊"。光滑(roughness=0)采样 mip 0(清晰),粗糙(roughness=1)采样最高 mip(最模糊)。一行 `textureLod` 搞定,这就是本章"省下完整 IBL 管线"的窍门。
+
+---
+
+## 七、严谨说明 —— 本章是"简化版 IBL"
+
+工业级 IBL(Unreal/Unity)用 **Split-Sum 近似**(Karis 2013),完整管线是:
+1. equirect → cubemap(渲染到 6 个面)
+2. **辐照度卷积**(Irradiance Map):对 cubemap 半球积分,得到精确漫反射
+3. **预过滤环境图**(Prefiltered Map):按 GGX 重要性采样,每个 mip 对应一个粗糙度
+4. **BRDF LUT**:预积分菲涅尔 + 几何项的 2D 查找表
+5. 最终:`specular = prefiltered * (F * brdf.x + brdf.y)`
+
+本章用 **equirect 直采 + mipmap 模糊** 替代了步骤 1-4。**视觉上 80% 接近,代码量 1/4,出错面极小。** 完整 Split-Sum 版作为进阶练习(见课后),也是 Ch 12 的潜在升级。
+
+为什么这么选?因为 AIForge 是教学引擎 —— 先用简单方法把"环境光照"的概念讲透、跑通,再谈精确。完整 IBL 一旦有个 cubemap 朝向写反,整章黑屏且极难调试。
+
+---
+
+## 八、新增文件
+
+| 文件 | 内容 |
+|---|---|
+| `engine/render/Texture.h/cpp` | 加 `CreateFromHDR`(RGB16F + mipmap)+ `GetMaxMipLevel` |
+| `engine/render/Skybox.h/cpp` | 天空盒(equirect 直采) |
+| `examples/09_*/main.cpp` | demo:PBR 球阵 + 天空盒 + IBL,可切 3 张 HDRI |
+| `data/textures/hdri/*.hdr` | 3 张 Polyhaven CC0 HDRI(已登记 CREDITS.md) |
+
+---
+
+## 九、Demo 体验
+
+`chapter_09_demo.exe`:
+- 背景是**真实 HDR 天空**(默认威尼斯日落)
+- **7×7 PBR 球阵**沐浴在环境光里:
+  - **金属球反射天空** —— 能看到天空的颜色映在球面上
+  - **粗糙金属**反射模糊(磨砂金属感),**光滑金属**反射清晰(镜面)
+  - 非金属球有来自天空的柔和漫反射补光
+- 对比 Ch 08:右上角的粗糙金属球**不再发黑**,有了环境反射
+
+**控制**:
+| 操作 | 效果 |
+|---|---|
+| 鼠标右键拖动 | 绕场景旋转 |
+| 滚轮 | 缩放 |
+| **1 / 2 / 3** | 切换 HDRI(日落 / 阴天户外 / 室内影棚)|
+| ESC | 退出 |
+
+**最有教育意义**:按 1/2/3 切换环境 —— 同一组球,在不同环境下质感完全不同。日落环境下金属泛橙,影棚环境下金属泛白。这就是 IBL:**环境决定材质表现**。
+
+---
+
+## 十、课后练习
+
+1. 实现完整 Split-Sum IBL(equirect→cubemap + 辐照度卷积 + 预过滤 + BRDF LUT)
+2. 加 BRDF LUT,让镜面反射更准(边缘菲涅尔正确)
+3. 天空盒加"曝光"控制(模拟相机,整体调亮/暗)
+4. 让物体能被天空"间接照亮"形成柔和阴影(SSAO,Ch 12)
+
+---
+
+## 十一、常见坑
+
+- **HDR 必须用浮点纹理**(GL_RGB16F),用 RGBA8 会把 >1 的光截断
+- **方向归一化** —— dirToUV 前 `normalize`,否则 UV 错
+- **mipmap 必须生成**(`glGenerateMipmap`),否则 roughness 模糊无效
+- **天空盒深度** —— 忘了 `.xyww` + `GL_LEQUAL`,天空会盖住物体或被裁掉
+- **极点接缝** —— equirect 在正上/正下方有轻微挤压,demo 级可接受
+- **gamma 只做一次** —— 天空盒和物体都 tonemap+gamma,别重复
+
+---
+
+## 十二、延伸阅读
+
+- [LearnOpenGL — IBL Diffuse Irradiance](https://learnopengl.com/PBR/IBL/Diffuse-irradiance)
+- [LearnOpenGL — IBL Specular](https://learnopengl.com/PBR/IBL/Specular-IBL)
+- [Real Shading in UE4 (Karis 2013, Split-Sum)](https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf)
+- [Polyhaven HDRI 库(CC0)](https://polyhaven.com/hdris)
+
+---
+
+## 十三、下一章预告
+
+**Ch 10 — 骨骼动画 + 状态机 + 混合树**:3D 篇章前半到此。下一章让 3D 角色"动起来" —— Assimp 加载带骨骼的模型,蒙皮、动画播放、idle/walk/run 状态切换。**第一个会动的 3D 角色。**
